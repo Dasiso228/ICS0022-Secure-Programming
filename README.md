@@ -1,116 +1,80 @@
-# Secure CLI Password Manager
-Secure CLI Password Manager is a command-line password management application developed for the **Secure Programming (ICS0022)** course at Tallinn University of Technology.
+# CLI Password Manager
 
-The goal of the project is to create a small password manager with a strong focus on secure software development practices.
+Secure Programming, ICS0022. Checkpoint 1: threat model and architecture.
 
-## Project Scope
+## Project scope
 
-The application will allow a user to securely store and manage credentials locally through a command-line interface.
+The project will be a local command-line password manager for one user on
+Linux and macOS. The user will protect a vault with a master password and
+manage entries containing a label, username, password and optional note.
+The planned vault location is `~/.securepm/vault.json`.
 
-The password manager will use a master password to unlock an encrypted password vault.
+The initial version will support creating a vault, adding, listing, viewing,
+editing and deleting entries, changing the master password and generating
+passwords. Each command that accesses an existing vault will require the
+master password. Cloud synchronisation, shared accounts, a web interface
+and password recovery are outside the initial scope.
 
-The initial version is planned as a single-user local application.
+## Checkpoint 1 status
 
-The project will focus on:
+This checkpoint contains only the README and the design document in 
+PDF formats. The architecture, threat model, vault format and cryptographic
+scheme are proposed decisions. Application code has not been implemented.
+The commands and setup below describe the intended implementation for the
+next checkpoint and cannot run as a password manager yet.
 
-* secure authentication using a master password;
-* encrypted storage of credentials;
-* protection of the password vault against unauthorized modification;
-* secure handling of passwords and encryption keys in memory;
-* input validation;
-* secure file handling;
-* safe error handling;
-* logging of relevant security events;
-* security testing of the final application.
+## Planned technology
 
-## Planned Features
+- Python 3.12 or newer for the CLI and application logic.
+- The cryptography library for Argon2id key derivation and AES-256-GCM encryption.
+- Python standard-library modules for argument parsing, hidden password input,
+  secure random generation, JSON, file operations and locking.
+- One encrypted JSON vault in a private directory, with no plaintext passwords
+  or encryption keys stored on disk.
 
-The password manager is planned to support the following operations:
+The design separates user management, encryption and storage. Python keeps
+the project small and readable, while the cryptography library provides the
+cryptographic operations. The tested dependency version will be pinned when
+implementation begins.
 
-* initialize a new password vault;
-* unlock the vault using a master password;
-* add a credential;
-* list stored credential names;
-* retrieve a credential;
-* edit an existing credential;
-* delete a credential;
-* lock the vault.
+## Planned commands
 
-A stored credential may contain:
+The intended command prefix is `.venv/bin/python -m password_manager`.
 
-* entry name;
-* username;
-* password;
-* website or service name;
-* optional notes.
+| Command | Planned behaviour |
+| --- | --- |
+| `init` | Choose and confirm a master password; create a vault without overwriting an existing one. |
+| `add` | Unlock the vault and prompt for a new entry. |
+| `list` | Unlock and list entry IDs and labels without passwords. |
+| `show ENTRY_ID` | Unlock and intentionally reveal the selected entry in a terminal. |
+| `update ENTRY_ID` | Unlock, prompt for changes and save an entry. |
+| `delete ENTRY_ID` | Unlock and require confirmation before deletion. |
+| `change-master` | Unlock with the old password and re-encrypt with a confirmed new password. |
+| `generate --length 20` | Generate a random password; default length 20, allowed range 12 to 128. |
 
-## Planned CLI Commands
+Entry fields and passwords will be entered through prompts, not command-line
+arguments. An entry ID will be a UUID in 32-character hexadecimal form.
+Password generation will not require an existing vault.
 
-Example commands:
+## Planned build and run
 
-```bash
-password-manager init
-password-manager add
-password-manager list
-password-manager get <entry>
-password-manager edit <entry>
-password-manager delete <entry>
-password-manager lock
+Python does not require a separate compilation step. After the application
+is implemented, the intended setup from the repository root on Linux or macOS is:
+
+```sh
+python3 -m venv .venv
+.venv/bin/python -m pip install cryptography
+.venv/bin/python -m password_manager --help
+.venv/bin/python -m password_manager init
 ```
 
-The exact command structure may change during implementation.
+These are future run instructions. There is currently no password_manager
+package, so the last two commands will not work at Checkpoint 1.
+The application will run as the ordinary user without sudo.
 
-## Security Design
+## Design document
 
-The password vault will not store credentials in plaintext.
-
-The master password will be processed using a password-based key derivation function such as **Argon2id**.
-
-The derived encryption key will be used to encrypt the vault using authenticated encryption, currently planned to use **AES-GCM**.
-
-The project will also consider:
-
-* protection against brute-force attacks;
-* secure generation and storage of salts and nonces;
-* detection of vault modification;
-* safe handling of sensitive data in memory;
-* secure file permissions;
-* input validation;
-* secure error handling.
-
-## Technology
-
-Planned implementation:
-
-* **Language:** Python 3
-* **Interface:** Command Line Interface (CLI)
-* **Password/key derivation:** Argon2id
-* **Authenticated encryption:** AES-GCM
-* **Platform:** Linux, macOS
-
-The final libraries and implementation details may change during development.
-
-## Project Status
-
-Current stage:
-
-**Checkpoint 1 — Threat Model and Architecture**
-
-Checkpoint 1 focuses on the architecture of the password manager, threat modelling, cryptographic design, and initial project structure.
-
-Implementation of the main password manager functionality will follow in later checkpoints.
-
-## Running the Project
-
-The project is currently in the design stage and does not yet contain the final executable application.
-
-Future versions are expected to run using Python 3.
-
-Example:
-
-```bash
-python main.py
-```
-
-More detailed build and run instructions will be added as implementation progresses.
+The document in `pdf` contains the architecture diagram, threats and intended
+mitigations, the proposed vault format and encryption scheme, memory-handling
+limits and the plan for safe file operations.
 
