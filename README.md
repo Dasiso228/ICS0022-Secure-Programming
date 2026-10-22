@@ -1,80 +1,141 @@
 # CLI Password Manager
 
-Secure Programming, ICS0022. Checkpoint 1: threat model and architecture.
+Secure Programming, ICS0022. Checkpoint 2: core requirements implemented.
 
-## Project scope
+## Scope and current status
 
-The project will be a local command-line password manager for one user on
-Linux and macOS. The user will protect a vault with a master password and
-manage entries containing a label, username, password and optional note.
-The planned vault location is `~/.securepm/vault.json`.
+A local command-line password manager for one user. The design targets Linux and
+macOS and stores the encrypted vault at `~/.securepm/vault.json`. Each command
+accessing an existing vault authenticates again and then exits.
 
-The initial version will support creating a vault, adding, listing, viewing,
-editing and deleting entries, changing the master password and generating
-passwords. Each command that accesses an existing vault will require the
-master password. Cloud synchronisation, shared accounts, a web interface
-and password recovery are outside the initial scope.
+Checkpoint 2 implements creation, addition, listing and masked viewing. Cloud
+synchronisation, shared accounts, a web interface and password recovery remain
+outside the project scope.
 
-## Checkpoint 1 status
-
-This checkpoint contains only the README and the design document in 
-PDF formats. The architecture, threat model, vault format and cryptographic
-scheme are proposed decisions. Application code has not been implemented.
-The commands and setup below describe the intended implementation for the
-next checkpoint and cannot run as a password manager yet.
-
-## Planned technology
-
-- Python 3.12 or newer for the CLI and application logic.
-- The cryptography library for Argon2id key derivation and AES-256-GCM encryption.
-- Python standard-library modules for argument parsing, hidden password input,
-  secure random generation, JSON, file operations and locking.
-- One encrypted JSON vault in a private directory, with no plaintext passwords
-  or encryption keys stored on disk.
-
-The design separates user management, encryption and storage. Python keeps
-the project small and readable, while the cryptography library provides the
-cryptographic operations. The tested dependency version will be pinned when
-implementation begins.
-
-## Planned commands
-
-The intended command prefix is `.venv/bin/python -m password_manager`.
-
-| Command | Planned behaviour |
+| Command | Current behaviour |
 | --- | --- |
-| `init` | Choose and confirm a master password; create a vault without overwriting an existing one. |
-| `add` | Unlock the vault and prompt for a new entry. |
-| `list` | Unlock and list entry IDs and labels without passwords. |
-| `show ENTRY_ID` | Unlock and intentionally reveal the selected entry in a terminal. |
-| `update ENTRY_ID` | Unlock, prompt for changes and save an entry. |
-| `delete ENTRY_ID` | Unlock and require confirmation before deletion. |
-| `change-master` | Unlock with the old password and re-encrypt with a confirmed new password. |
-| `generate --length 20` | Generate a random password; default length 20, allowed range 12 to 128. |
+| `init` | Confirm a new master password and create a vault without overwriting one. |
+| `add` | Authenticate, prompt for an entry and save it encrypted. |
+| `list` | Authenticate and print only entry IDs and labels. |
+| `show ENTRY_ID` | Authenticate and print metadata; the password is always `[hidden]`. |
 
-Entry fields and passwords will be entered through prompts, not command-line
-arguments. An entry ID will be a UUID in 32-character hexadecimal form.
-Password generation will not require an existing vault.
+The command prefix is `.venv/bin/python -m password_manager`.
+Labels, usernames, passwords and notes are entered through prompts. Passwords
+are not command arguments. Password input does not echo; the program aborts if
+hidden input is unavailable. Vault operations require an interactive terminal.
 
-## Planned build and run
+The original Checkpoint 1 plan proposed revealing passwords with `show`.
+Checkpoint 2 explicitly requires an interface that never prints cleartext
+passwords, so this implementation masks them. `update`, `delete`,
+`change-master` and `generate` are planned but not implemented at this checkpoint.
+No application log files are produced at this stage.
 
-Python does not require a separate compilation step. After the application
-is implemented, the intended setup from the repository root on Linux or macOS is:
+## Requirements and setup
+
+Use Python 3.12 or newer, Git and a local POSIX filesystem. Run the application
+as the ordinary owner, without `sudo`. The user home and its parent directories
+must not be writable by another non-root user. The private `.securepm` directory
+must belong to the user and have mode `0700`.
+
+On Arch Linux, install the system packages:
 
 ```sh
-python3 -m venv .venv
-.venv/bin/python -m pip install cryptography
-.venv/bin/python -m password_manager --help
-.venv/bin/python -m password_manager init
+sudo pacman -Syu --needed python python-pip git
 ```
 
-These are future run instructions. There is currently no password_manager
-package, so the last two commands will not work at Checkpoint 1.
-The application will run as the ordinary user without sudo.
+On macOS, first install Python 3.12 or newer and Git. macOS is a design target;
+native macOS execution has not been verified for this checkpoint.
 
-## Design document
+Clone this repository and open its root directory. Python needs no compilation
+step. Create the environment and install the pinned dependency:
 
-The document in `pdf` contains the architecture diagram, threats and intended
-mitigations, the proposed vault format and encryption scheme, memory-handling
-limits and the plan for safe file operations.
+```sh
+python3 --version
+python3 -m venv .venv
+.venv/bin/python -m pip install --upgrade pip
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python -m password_manager --help
+```
 
+These commands also work in fish. Activation is unnecessary because the commands
+use the environment's Python directly. For optional fish activation, use
+`source .venv/bin/activate.fish`.
+
+## Run
+
+```sh
+.venv/bin/python -m password_manager init
+.venv/bin/python -m password_manager add
+.venv/bin/python -m password_manager list
+```
+
+Copy a 32-character ID from `list` and use it instead of `ENTRY_ID`:
+
+```sh
+.venv/bin/python -m password_manager show ENTRY_ID
+```
+
+A new master password must contain at least 15 characters and at most 1024
+UTF-8 bytes. Use a long, unique passphrase. Stored entry passwords must be
+nonempty and at most 1024 UTF-8 bytes. Spaces are preserved. The optional note
+is a single line. Each command requests the master password independently.
+
+There is no password reset. Do not delete an existing vault to resolve an
+error. Repeated `init` refuses to overwrite it.
+
+## Storage and authentication
+
+- `cryptography==50.0.2` supplies Argon2id and AES-256-GCM.
+- Argon2id: 32-byte key, random 16-byte salt, 65536 KiB memory, 3 passes, 4 lanes.
+- AES-GCM: fresh random 12-byte nonce on every save, full 16-byte tag.
+- The entire `entries` payload is encrypted, including IDs, labels, usernames,
+  passwords and notes. The outer JSON contains only `version`, `kdf`, `salt`,
+  `nonce` and `ciphertext`. Base64 is encoding, not encryption.
+- Every header field except `ciphertext` is authenticated as canonical JSON
+  associated data. The ciphertext field contains the encrypted payload and tag.
+- Successful tag verification authenticates the master-password-derived key.
+  No separate password hash, master password or encryption key is stored.
+- Invalid headers, duplicate JSON keys, unsupported settings, invalid Base64,
+  unexpected fields, excessive sizes and control characters are rejected.
+- Wrong passwords or a failed authentication tag reveal no entries and do not
+  save changes. Their error message is deliberately the same.
+- The directory uses mode `0700`; vault, persistent lock and encrypted temporary
+  files use `0600`. Descriptor-based operations reject symlinks, unexpected file
+  types and hard links. Entry labels never become paths.
+- A persistent advisory lock covers the whole command. Updates sync encrypted
+  temporary data before atomic replacement and then sync the directory.
+
+Limits: 8 MiB outer file, 500 entries, 128 UTF-8 bytes per label, 256 per username,
+1024 per password, and 4096 per note.
+
+## Tests
+
+```sh
+.venv/bin/python -m unittest discover -s tests -v
+```
+
+The 15 tests cover encrypted round trips, persistence, wrong passwords, modified
+ciphertext and headers, fresh nonces, input limits, permissions, symlinks, hard
+links, locking, failed writes, exclusive creation and terminal password masking.
+The CLI tests use a pseudo-terminal. They create temporary directories under the
+current user's home and remove them afterward; they do not use the real
+`~/.securepm` vault. Test credentials are artificial fixtures.
+
+## Limitations and next work
+
+This is a coursework checkpoint, not a security-audited production product.
+Mutable key buffers are overwritten and core dumps are disabled for commands,
+but CPython cannot guarantee erasure of immutable strings, bytes or library
+copies. The application does not protect against root, a debugger, or malware
+running as the owner. OS swap and hibernation protection depend on the host.
+
+The lock coordinates cooperating commands. It cannot prevent the owner or an
+administrator from modifying files outside the application. An error after
+atomic replacement may mean the new file exists but its durability could not
+be confirmed; check the vault before retrying. An abrupt process termination
+can leave an encrypted temporary file. Rollback to an older valid vault is not
+detected. Keeping encrypted backups is the user's responsibility.
+
+The original design PDF remains in the repository's `pdf` directory. See
+`CHECKPOINT2.md` for the progress note. Continue committing at meaningful working
+milestones and at least once per working session.
