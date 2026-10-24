@@ -17,10 +17,9 @@ if the terminal cannot disable echo.
 
 The repository includes 15 automated tests covering the main functional and
 security requirements. Run `.venv/bin/python -m unittest discover -s tests -v`
-on the submission machine and record the actual result below. A manual
-`init` / `add` / `list` / `show` check should also be performed there.
 
-## Local validation record - complete after running the checks
+
+## Local validation record
 
 - OS: Arch Linux; shell: fish.
 - Python version: Python 3.14.6.

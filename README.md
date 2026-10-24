@@ -137,5 +137,4 @@ can leave an encrypted temporary file. Rollback to an older valid vault is not
 detected. Keeping encrypted backups is the user's responsibility.
 
 The original design PDF remains in the repository's `pdf` directory. See
-`CHECKPOINT2.md` for the progress note. Continue committing at meaningful working
-milestones and at least once per working session.
+`CHECKPOINT2.md` for the progress note.
